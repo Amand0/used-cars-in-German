@@ -1,0 +1,341 @@
+---
+title: "621final"
+output:
+  html_document: default
+  word_document: default
+---
+
+```{r readdata}
+# grap data, how much time take to read this data set
+require(data.table)
+auto <- fread(input = "/Users/amanda/Documents/Data Science/final project/autos.csv", header = TRUE)
+#system.time(auto <- fread(input = "/Users/amanda/Documents/Data Science/final project/autos.csv", header = TRUE))
+
+```
+
+```{r cleandata}
+# select predictors and tidy it up
+str(auto)
+summary(auto)
+# select variables
+name_title <- names(auto)
+name_title
+used_car <- auto[,c("brand","yearOfRegistration","monthOfRegistration","kilometer","price","vehicleType","powerPS","gearbox","fuelType","dateCreated","lastSeen")]
+# select data according to certain requirements
+quantile(used_car$price, 0.05)
+quantile(used_car$price, 0.95)
+quantile(used_car$yearOfRegistration, 0.05)
+quantile(used_car$yearOfRegistration, 0.95)
+quantile(used_car$powerPS, 0.09)
+quantile(used_car$powerPS, 0.998)
+used_car <- used_car[price > quantile(used_car$price, 0.05) & price < quantile(used_car$price, 0.95),]
+used_car <- used_car[yearOfRegistration > 1993 & yearOfRegistration < 2017,]
+used_car <- used_car[powerPS >20 & powerPS <500]
+
+# check if there are NA value or non-value
+used_car <- used_car[!is.na(used_car$yearOfRegistration),]
+used_car <- used_car[!is.na(used_car$monthOfRegistration),]
+used_car <- used_car[!is.na(used_car$kilometer),]
+used_car <- used_car[!is.na(used_car$fuelType),]
+used_car <- used_car[!is.na(used_car$vehicleType),]
+used_car <- used_car[!is.na(used_car$gearbox),]
+used_car <- used_car[!is.na(used_car$brand),]
+used_car <- used_car[!is.na(used_car$dateCreated),]
+used_car <- used_car[!is.na(used_car$lastSeen),]
+used_car <- used_car[!yearOfRegistration == "",]
+used_car <- used_car[!monthOfRegistration == "",]
+used_car <- used_car[!kilometer == "",]
+used_car <- used_car[!fuelType == "",]
+used_car <- used_car[!vehicleType == "",]
+used_car <- used_car[!gearbox == "",]
+used_car <- used_car[!brand == "",]
+used_car <- used_car[!dateCreated == "",]
+used_car <- used_car[!lastSeen == "",]
+
+
+# also we need to translate German to English
+used_car$vehicleType[used_car$vehicleType == "kleinwagen"] <- "small car"
+used_car$vehicleType[used_car$vehicleType == "kombi"] <- "wagon"
+used_car$vehicleType[used_car$vehicleType == "andere"] <- "others"
+used_car$fuelType[used_car$fuelType == "benzin"] <- "petrol"
+used_car$fuelType[used_car$fuelType == "andere"] <- "other"
+used_car$fuelType[used_car$fuelType == "elektro"] <- "electror"
+used_car$gearbox[used_car$gearbox == "manuell"] <- "manual"
+used_car$gearbox[used_car$gearbox == "automatik"] <- "automatic"
+
+used_car$dateCreated <- substr(used_car$dateCreated,1,10)
+used_car$lastSeen <- substr(used_car$lastSeen,1,10)
+used_car$dateCreated <- as.Date(used_car$dateCreated,"%Y-%m-%d")
+used_car$lastSeen <- as.Date(used_car $lastSeen,"%Y-%m-%d")
+# takeing lastSeen as the day that the vehicle was sold
+used_car$sellingday <- used_car$lastSeen - used_car$dateCreated
+# add new variables "dayOFRegistration", and storing the value of year,month and days info to it
+used_car$dayOFRegistration <- c("01")
+used_car$dateOFRegistration <- as.Date(with(used_car, paste(yearOfRegistration,monthOfRegistration,dayOFRegistration,sep = "-")), "%Y-%m-%d")
+used_car <- used_car[!is.na(used_car$dateOFRegistration),]
+
+# add new variables "age", and storing the value of lastseen subtract dateOFRegistration to age
+used_car$age <- difftime(used_car$lastSeen, used_car$dateOFRegistration, units = "weeks")
+# remove error values
+used_car <- used_car[!age <= "0",]
+used_car$sellingday[used_car$sellingday == "0"] <- "1" 
+used_car$sellingday <- as.integer(used_car$sellingday)
+used_car$age <- as.integer(used_car$age)
+used_car
+
+```
+```{r predictive-overall}
+require(ggplot2)
+#vehicleType
+overall <- ggplot(used_car, aes(x = vehicleType)) +
+  geom_bar(fill = "green", alpha = 0.5) +
+  labs(x= 'vehicleType', y = 'Number') +
+  ggtitle('Vehicle Type Frequency')
+overall
+# gearbox
+ggplot(used_car, aes(x = gearbox)) +
+  geom_bar(fill = "green", alpha = 0.5) +
+  labs(x= 'Gearbox', y = 'Number') +
+  ggtitle('Gearbox Frequency')
+# fuelType
+ggplot(used_car, aes(x = fuelType)) +
+  geom_bar(fill = "green", alpha = 0.5) +
+  labs(x= 'fuelType', y = 'Number') +
+  ggtitle('Fuel Type Frequency')
+# sellingday
+ggplot(used_car, aes(x = sellingday)) +
+  geom_histogram(breaks = seq(0,40, by = 5), fill = "red", alpha = 0.5) +
+  labs(x= 'sellingday', y = 'Number OF Car') +
+  ggtitle('Histogram for selling day')
+# Top-10 Brand
+brand <- as.data.frame(table(used_car$brand))
+brand <- brand[(order(brand$Freq,decreasing = TRUE)),]
+top10 <- brand[1:10,]
+top10
+top10_brand <- used_car[used_car$brand %in% top10$Var1,]
+top10_brand
+ggplot(top10_brand,aes(x=brand))+
+  geom_bar(fill = "blue", alpha = 0.5) +
+  labs(x='Brand', y= 'Sales Volume') +
+  ggtitle('The Top10 Brand OF Ebay IN German')
+```
+
+```{r compareVSprice}
+# VehicleType
+ggplot(used_car,aes(x = vehicleType, y = price, fill = vehicleType)) +
+geom_boxplot(alpha = 0.5) +
+  stat_summary(fun.y = mean, geom = "point", shape = 20, size =5, color = "black", fill = "black") +
+  labs(x = 'VehicleType', y = 'Price') +
+  ggtitle('VehicleType VS Price')
+
+# GearBox
+ggplot(used_car,aes(x = gearbox, y = price, fill = gearbox)) +
+geom_boxplot(alpha = 0.5) +
+  stat_summary(fun.y = mean, geom = "point", shape = 20, size =5, color = "black", fill = "black") +
+  labs(x = 'GearBox', y = 'Price') +
+  ggtitle('GearBox VS Price')
+# FuelType
+ggplot(used_car,aes(x = fuelType, y = price, fill = fuelType)) +
+geom_boxplot(alpha = 0.5) +
+  stat_summary(fun.y = mean, geom = "point", shape = 20, size =5, color = "black", fill = "black") +
+  labs(x = 'FuelType', y = 'Price') +
+  ggtitle('FuelType VS Price')
+# Sellingday for different VehicleTypes
+ggplot(used_car,aes(x = sellingday, y = price)) +
+geom_point(aes(col = "green")) +
+             geom_smooth(method = "loess", se = F) +
+  xlim(c(0,30)) +
+  ylim(c(0,20000))+
+  labs(x = 'SellingDay', y = 'Price') +
+  ggtitle('SellingDay VS Price') +
+  facet_wrap(~ vehicleType)
+# PowerPS for different VehicleTypes
+ggplot(used_car,aes(x = powerPS, y = price)) +
+geom_point(aes(fill = "blue")) +
+             geom_smooth(method = "loess", se = F) +
+  xlim(c(0,500)) +
+  ylim(c(0,20000))+
+  labs(x = 'PowerPS', y = 'Price') +
+  ggtitle('PowerPS VS Price') +
+  facet_wrap(~ vehicleType)
+# Sellingdays VS PowerPS for different VehicleTypes
+ggplot(used_car,aes(x = sellingday, y = powerPS)) +
+geom_point(aes(fill = "green")) +
+             geom_smooth(method = "loess", se = F) +
+  xlim(c(0,30)) +
+  ylim(c(0,500))+
+  labs(x = 'SellingDay', y = 'PowerPS') +
+  ggtitle('SellingDay VS PowerPS') +
+  facet_wrap(~ vehicleType)
+
+```
+```{r correlated}
+
+require(corrplot)
+used_car_cor <- used_car[,c("price","kilometer","powerPS","sellingday","age")]
+str(used_car_cor)
+used_car_cor$price <- as.numeric(used_car_cor$price)
+used_car_cor$kilometer <- as.numeric(used_car_cor$kilometer)
+used_car_cor$powerPS <- as.numeric(used_car_cor$powerPS)
+used_car_cor$sellingday <- as.numeric(used_car_cor$sellingday)
+used_car_cor$age <- as.numeric(used_car_cor$age)
+cor(used_car_cor)
+corrplot.mixed(cor(used_car_cor))
+#high correlation
+```
+
+```{r beforeRegressionModel}
+require(GGally)
+require(ggairs)
+used_car$sellingday <- as.integer(used_car$sellingday)
+qqnorm(used_car$price)
+qqline(used_car$price)
+ggpairs(used_car_cor)
+# the variable of price and sellingday are not normal distrbution
+```
+
+
+
+```{r assumption}
+# if y is continuous?
+ploty <- plot(used_car$price)
+ploty
+
+# errors are normally distribution?
+fit.buyer <- lm(log(price) ~ sellingday + kilometer + vehicleType + powerPS + gearbox + fuelType + age, data = used_car)
+residual.lm <- plot(fit.buyer)[[1]]
+residual.lm
+
+
+# test serial time, observations and errors are independent 
+require(lmtest)
+dw.lm <- dwtest(fit.buyer)
+dw.lm
+
+
+#bptest-- if hteroscedasticity
+bptest.lm <- bptest(fit.buyer)
+bptest.lm
+
+
+# X-Y linear model?
+fit.nonlinear <- lm(price ~ sellingday + I(kilometer^2) + vehicleType + powerPS + gearbox + fuelType + I(age^2), data = used_car)
+
+```
+
+```{r Multi-Collinearity Testing}
+require(perturb)
+require(VIF)
+library(car)
+# ols
+#collin.diag.ols  <- colldiag(mod = fit.buyer, scale = F, center = F, add.intercept = T)
+#collin.diag
+fit.buyer.red.ols <- lm(log(price) ~ sellingday  + kilometer + powerPS + age, data = used_car)
+collin.buyer.ols <- colldiag(mod = fit.buyer.red.ols, scale = F, center = F, add.intercept = T)
+collin.buyer.ols
+vif(fit.buyer.red.ols)
+#wls
+#collin.diag.wls <- colldiag(mod = fit.buyer.wls，scale = F, center = F, add.intercept = T)
+#collin.diag.wls
+fit.lm <- lm(price ~ sellingday + kilometer + vehicleType + powerPS + gearbox + fuelType + age, data = used_car)
+fit.buyer.red.wls <- lm(log(price) ~ sellingday  + kilometer + powerPS + age, data = used_car,weights = 1/fit.lm$residuals^2)
+collin.buyer.wls <- colldiag(mod = fit.buyer.red.wls, scale = F, center = F, add.intercept = T)
+collin.buyer.wls
+vif(fit.buyer.red.wls)
+
+```
+
+```{r ols}
+# ols model
+fit.buyer <- lm(log(price) ~ sellingday + kilometer + vehicleType + powerPS + gearbox + fuelType + age, data = used_car)
+summary(fit.buyer)
+#test normal distribution
+
+require(GGally)
+require(ggairs)
+used_car$sellingday <- as.integer(used_car$sellingday)
+po <- log(used_car$price)
+
+qqnorm(po)
+qqline(po)
+
+#stepwise
+ols.log.null <- lm(log(price) ~ 1, data = used_car)
+ols.log.full <- lm(log(price) ~ sellingday + kilometer + vehicleType + powerPS + gearbox + fuelType + age, data = used_car)
+ols.step.backward <- step(ols.log.full,scope=list(lower=ols.log.null, upper=ols.log.full), direction="forward", test="F")
+summary(ols.step.backward)
+```
+
+```{r wls}
+# wls model
+fit.lm <- lm(price ~ sellingday + kilometer + vehicleType + powerPS + gearbox + fuelType + age, data = used_car)
+fit.buyer.wls <- lm(log(price) ~ sellingday + kilometer + vehicleType + powerPS + gearbox + fuelType + age, data = used_car, weights = 1/fit.lm$residuals^2)
+summary(fit.buyer.wls)
+
+# wls stepwise
+wls.null <- lm(log(price) ~ 1, data = used_car, weights = 1/fit.lm$residuals^2)
+wls.full <- lm(log(price) ~ sellingday + kilometer + vehicleType + powerPS + gearbox + fuelType + age, data = used_car, weights = 1/fit.lm$residuals^2)
+wls.step.backward <- step(wls.full,scope=list(lower=wls.null, upper=wls.full), direction="both", test="F")
+summary(wls.step.backward)
+
+```
+
+```{r LASSO}
+
+require(glmnet)
+x <- model.matrix(log(price) ~ sellingday  + kilometer + vehicleType + powerPS + gearbox + fuelType + age, data = used_car)[,-1]
+y <- log(used_car$price)
+lasso.mod <- glmnet(x,y,alpha = 1)
+plot(lasso.mod)
+
+set.seed(1)
+cv.10FOLD.lasso<- cv.glmnet(x,y,alpha = 1)
+cbind("Lambda" = cv.10FOLD.lasso$lambda, "10-Fold MSE" = cv.10FOLD.lasso$cvm)
+plot(cv.10FOLD.lasso)
+best.lambda.lasso = cv.10FOLD.lasso$lambda.min
+log(best.lambda.lasso)
+min.mse.lasso = min(cv.10FOLD.lasso$cvm)
+cbind("Best Lambda" = best.lambda.lasso, "Log(Lambda)"= log(best.lambda.lasso),"Best 10FCV MSE" = min.mse.lasso)
+
+ 
+```
+
+
+
+
+
+```{r cross validation}
+# ols
+set.seed(1)
+train <- sample(nrow(used_car), 0.7*nrow(used_car))
+lm.ols <- lm(log(price) ~ sellingday + kilometer + vehicleType + powerPS + gearbox + fuelType + age,data = used_car, subset = train)
+lm.ols.mse <- mean((log(used_car$price) - predict(lm.ols, used_car))^2)
+lm.ols.mse.train <- mean((log(used_car$price) - predict(lm.ols, used_car))[train]^2)
+lm.ols.mse.test <- mean((log(used_car$price) - predict(lm.ols, used_car))[-train]^2)
+mse.ols.all <- c("MSE FULL"= lm.ols.mse, "MSE Train" = lm.ols.mse.train, "MSE Test" = lm.ols.mse.test)
+mse.ols.all
+
+
+#wls
+set.seed(1)
+lm.wls <- lm(log(price) ~ sellingday + kilometer + vehicleType + powerPS + gearbox + fuelType + age, data = used_car, weights = 1/fit.lm$residuals^2, subset = train)
+lm.wls.mse <- mean((log(used_car$price) - predict(lm.wls, used_car))^2)
+lm.wls.mse.train <- mean((log(used_car$price) - predict(lm.wls, used_car))[train]^2)
+lm.wls.mse.test <- mean((log(used_car$price) - predict(lm.wls, used_car))[-train]^2)
+mse.wls.all <- c("MSE FULL"= lm.wls.mse, "MSE Train" = lm.wls.mse.train, "MSE Test" = lm.wls.mse.test)
+mse.wls.all
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
